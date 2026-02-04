@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 import unicodedata
+from datetime import datetime
 from typing import List, Tuple, Dict, Optional
 from io import BytesIO
 
@@ -78,7 +79,7 @@ EMAIL_PATTERNS = ['email', 'correo', 'e-mail', 'mail', 'correo electronico']
 
 def find_column(columns: List[str], patterns: List[str]) -> Optional[str]:
     """Find the first column that matches any of the patterns."""
-    columns_lower = {col: col.lower() for col in columns}
+    columns_lower = {col: str(col).lower() for col in columns}
     for pattern in patterns:
         for col, col_lower in columns_lower.items():
             if pattern == col_lower or pattern in col_lower:
@@ -98,9 +99,16 @@ def find_email_column(columns: List[str], author_num: int) -> Optional[str]:
     if author_num == 1:
         patterns = ['Email'] + patterns
 
+    columns_lower = {str(col).lower(): col for col in columns}
     for pattern in patterns:
-        if pattern in columns:
-            return pattern
+        pattern_lower = pattern.lower()
+        if pattern_lower in columns_lower:
+            return columns_lower[pattern_lower]
+    for pattern in patterns:
+        pattern_lower = pattern.lower()
+        for col_lower, original_col in columns_lower.items():
+            if pattern_lower == col_lower or pattern_lower in col_lower:
+                return original_col
     return None
 
 
@@ -132,7 +140,7 @@ def extract_authors_from_row(row, df_columns) -> List[Dict[str, str]]:
 
 
 # Streamlit UI
-st.title("Chequeo de Autores - RADLA 2025")
+st.title("Chequeo de Autores - RADLA 2026")
 st.write("Sube los archivos Excel para verificar si los autores de los trabajos estan inscriptos.")
 
 trabajos_file = st.file_uploader("Archivo de Trabajos Finalizados", type=['xlsx'])
@@ -141,8 +149,13 @@ inscriptos_file = st.file_uploader("Archivo de Inscriptos", type=['xlsx'])
 if trabajos_file is not None and inscriptos_file is not None:
     # Load the Excel files
     with st.spinner("Cargando archivos Excel..."):
-        df_trabajos = pd.read_excel(trabajos_file)
-        df_inscriptos = pd.read_excel(inscriptos_file)
+        try:
+            df_trabajos = pd.read_excel(trabajos_file)
+            df_inscriptos = pd.read_excel(inscriptos_file)
+        except Exception as exc:
+            st.error("No se pudieron leer los archivos Excel. Verifica que sean .xlsx validos.")
+            st.exception(exc)
+            st.stop()
 
     with st.expander("Ver informacion de los archivos"):
         st.write(f"**Trabajos Finalizados:** {df_trabajos.shape[0]} filas, {df_trabajos.shape[1]} columnas")
@@ -177,22 +190,26 @@ if trabajos_file is not None and inscriptos_file is not None:
 
         # Process each row in trabajos
         with st.spinner("Procesando trabajos..."):
-            matches = []
-            confidence_levels = []
-            matched_authors = []
+            try:
+                matches = []
+                confidence_levels = []
+                matched_authors = []
 
-            for idx, row in df_trabajos.iterrows():
-                autores_list = extract_authors_from_row(row, df_trabajos.columns)
+                for idx, row in df_trabajos.iterrows():
+                    autores_list = extract_authors_from_row(row, df_trabajos.columns)
+                    matched, confidence, author_name = check_match(autores_list, inscriptos_parsed)
+                    matches.append("Si" if matched else "No")
+                    confidence_levels.append(confidence)
+                    matched_authors.append(author_name if author_name else "")
 
-                matched, confidence, author_name = check_match(autores_list, inscriptos_parsed)
-                matches.append("Si" if matched else "No")
-                confidence_levels.append(confidence)
-                matched_authors.append(author_name if author_name else "")
-
-            # Add new columns
-            df_trabajos['Autor_Encontrado_En_Inscriptos'] = matches
-            df_trabajos['Nivel_Confianza'] = confidence_levels
-            df_trabajos['Autor_Coincidente'] = matched_authors
+                # Add new columns
+                df_trabajos['Autor_Encontrado_En_Inscriptos'] = matches
+                df_trabajos['Nivel_Confianza'] = confidence_levels
+                df_trabajos['Autor_Coincidente'] = matched_authors
+            except Exception as exc:
+                st.error("Ocurrio un error procesando los trabajos. Revisa las columnas del archivo.")
+                st.exception(exc)
+                st.stop()
 
         # Display results
         st.subheader("Resultados")
@@ -209,17 +226,31 @@ if trabajos_file is not None and inscriptos_file is not None:
             st.metric("Sin autor inscripto", total_trabajos - total_matches)
 
         st.write("**Distribucion por nivel de confianza:**")
-        confidence_counts = pd.Series(confidence_levels).value_counts()
+        confidence_counts = (
+            pd.Series(confidence_levels)
+            .value_counts()
+            .reset_index()
+            .rename(columns={"index": "Nivel de Confianza", 0: "Cantidad"})
+        )
         st.dataframe(confidence_counts)
 
         with st.expander("Ver tabla completa de resultados"):
-            st.dataframe(df_trabajos)
+            df_trabajos_display = df_trabajos.copy()
+            object_cols = df_trabajos_display.select_dtypes(include=["object"]).columns
+            if len(object_cols) > 0:
+                df_trabajos_display[object_cols] = (
+                    df_trabajos_display[object_cols]
+                    .where(df_trabajos_display[object_cols].notna(), "")
+                    .astype(str)
+                )
+            st.dataframe(df_trabajos_display)
 
         # Download button
         output = BytesIO()
         df_trabajos.to_excel(output, index=False, engine='openpyxl')
         output.seek(0)
 
+        now_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
         st.download_button(
             label="Descargar archivo actualizado",
             data=output,
