@@ -28,13 +28,13 @@ def check_match(autores_list: List[Dict[str, str]], inscriptos_data: List[Dict[s
     Returns (matched, confidence_level, matched_author_name)
 
     Confidence levels (in priority order):
-    - "High (lastName, firstName, email)" - all three match
-    - "Medium (lastName, firstName)" - lastName and firstName match
-    - "Low (lastName only)" - only lastName matches
-    - "No match" - no match found
+    - "Alta (apellido, nombre, email)" - all three match
+    - "Media (apellido, nombre)" - lastName and firstName match
+    - "Baja (solo apellido)" - only lastName matches
+    - "Sin coincidencia" - no match found
     """
     if not autores_list:
-        return False, "No match", None
+        return False, "Sin coincidencia", None
 
     best_match = None  # (confidence_priority, confidence_label, author_name)
 
@@ -51,23 +51,23 @@ def check_match(autores_list: List[Dict[str, str]], inscriptos_data: List[Dict[s
                 autor['firstName'] == inscripto['firstName'] and
                 autor['email'] == inscripto['email']):
                 # High confidence - return immediately
-                return True, "High (lastName, firstName, email)", autor_name
+                return True, "Alta (apellido, nombre, email)", autor_name
 
             elif (autor['firstName'] and
                   autor['firstName'] == inscripto['firstName']):
                 # Medium confidence - keep looking for better
                 if best_match is None or best_match[0] < 2:
-                    best_match = (2, "Medium (lastName, firstName)", autor_name)
+                    best_match = (2, "Media (apellido, nombre)", autor_name)
 
             else:
                 # Low confidence - only if we haven't found better
                 if best_match is None:
-                    best_match = (1, "Low (lastName only)", autor_name)
+                    best_match = (1, "Baja (solo apellido)", autor_name)
 
     if best_match:
         return True, best_match[1], best_match[2]
 
-    return False, "No match", None
+    return False, "Sin coincidencia", None
 
 
 # Define explicit column name patterns (order matters - first match wins)
@@ -146,9 +146,9 @@ if trabajos_file is not None and inscriptos_file is not None:
 
     with st.expander("Ver informacion de los archivos"):
         st.write(f"**Trabajos Finalizados:** {df_trabajos.shape[0]} filas, {df_trabajos.shape[1]} columnas")
-        st.write(f"Columnas: {df_trabajos.columns.tolist()}")
+        st.write(f"Columnas: {list(df_trabajos.columns)}")
         st.write(f"**Inscriptos:** {df_inscriptos.shape[0]} filas, {df_inscriptos.shape[1]} columnas")
-        st.write(f"Columnas: {df_inscriptos.columns.tolist()}")
+        st.write(f"Columnas: {list(df_inscriptos.columns)}")
 
     # Detect columns for inscriptos
     lastname_col = find_column(df_inscriptos.columns, LASTNAME_PATTERNS)
@@ -185,20 +185,20 @@ if trabajos_file is not None and inscriptos_file is not None:
                 autores_list = extract_authors_from_row(row, df_trabajos.columns)
 
                 matched, confidence, author_name = check_match(autores_list, inscriptos_parsed)
-                matches.append("Yes" if matched else "No")
+                matches.append("Si" if matched else "No")
                 confidence_levels.append(confidence)
                 matched_authors.append(author_name if author_name else "")
 
             # Add new columns
-            df_trabajos['Author_Found_In_Inscriptos'] = matches
-            df_trabajos['Match_Confidence'] = confidence_levels
-            df_trabajos['Matched_Author'] = matched_authors
+            df_trabajos['Autor_Encontrado_En_Inscriptos'] = matches
+            df_trabajos['Nivel_Confianza'] = confidence_levels
+            df_trabajos['Autor_Coincidente'] = matched_authors
 
         # Display results
         st.subheader("Resultados")
 
         total_trabajos = len(df_trabajos)
-        total_matches = sum(1 for m in matches if m == "Yes")
+        total_matches = sum(1 for m in matches if m == "Si")
 
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -223,7 +223,7 @@ if trabajos_file is not None and inscriptos_file is not None:
         st.download_button(
             label="Descargar archivo actualizado",
             data=output,
-            file_name="TrabajosFinalizados_Updated.xlsx",
+            file_name="TrabajosFinalizados_Actualizado.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
