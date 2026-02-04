@@ -74,16 +74,38 @@ Este archivo contiene la lista de becados que se desea verificar.
 
 ## Instrucciones de Uso Paso a Paso
 
-### Paso 1: Subir el Archivo de Trabajos Finalizados
-1. Haga clic en el boton "Browse files" debajo de "Archivo de Trabajos Finalizados"
-2. Seleccione su archivo .xlsx con los trabajos
+### Paso 1: Subir los Archivos
 
-### Paso 2: Subir el Archivo de Inscriptos
-1. Haga clic en el boton "Browse files" debajo de "Archivo de Inscriptos"
-2. Seleccione su archivo .xlsx con los inscriptos
+1. **Archivo de Trabajos Finalizados** (obligatorio)
+   - Haga clic en "Browse files" debajo de "Archivo de Trabajos Finalizados"
+   - Seleccione su archivo .xlsx con los trabajos
 
-### Paso 3: Ver los Resultados de Trabajos
-Una vez subidos ambos archivos, la aplicacion mostrara:
+2. **Archivo de Inscriptos** (obligatorio)
+   - Haga clic en "Browse files" debajo de "Archivo de Inscriptos"
+   - Seleccione su archivo .xlsx con los inscriptos
+
+3. **Archivo de Becados** (opcional)
+   - Si desea procesar becados, suba el archivo usando el tercer boton
+
+### Paso 2: Verificar los Archivos Cargados
+
+Una vez subidos los archivos, la aplicacion mostrara un resumen:
+- Cantidad de filas en cada archivo
+- Puede expandir "Ver informacion de los archivos" para ver las columnas detectadas
+
+> **IMPORTANTE:** Verifique que las columnas detectadas sean correctas antes de continuar.
+
+### Paso 3: Hacer Clic en "Procesar"
+
+Una vez que haya subido todos los archivos necesarios:
+1. Haga clic en el boton **"Procesar"**
+2. Espere a que la aplicacion procese los datos
+
+### Paso 4: Ver los Resultados
+
+Despues de procesar, la aplicacion mostrara:
+
+**Para Trabajos:**
 - **Total Trabajos**: Cantidad de trabajos procesados
 - **Con autor inscripto**: Trabajos donde al menos un autor esta inscripto
 - **Sin autor inscripto**: Trabajos sin ningun autor inscripto
@@ -92,20 +114,23 @@ Una vez subidos ambos archivos, la aplicacion mostrara:
   - *Media*: Coincide apellido y nombre
   - *Baja*: Solo coincide el apellido
 
-### Paso 4: Descargar Archivo de Trabajos Actualizado
-Haga clic en "Descargar archivo actualizado" para obtener el archivo de trabajos con las columnas adicionales:
+**Para Becados (si se subio el archivo):**
+- **Total Becados**: Cantidad de becados procesados
+- **Con Id Inscripto**: Becados encontrados en la lista de inscriptos
+- **Con Trabajo Id**: Becados cuyo trabajo fue encontrado
+
+### Paso 5: Descargar Archivos Procesados
+
+**Archivo de Trabajos Actualizado:**
+Haga clic en "Descargar archivo actualizado" para obtener el archivo con las columnas adicionales:
 - `Autor_Encontrado_En_Inscriptos`: Si/No
 - `Nivel_Confianza`: Alta/Media/Baja/Sin coincidencia
 - `Autor_Coincidente`: Nombre del autor que coincidio
 
-### Paso 5 (Opcional): Procesar Archivo de Becados
-1. Suba el archivo de Becados usando el tercer boton
-2. La aplicacion agregara dos columnas al archivo:
-   - `Id Inscripto`: ID del inscripto si se encuentra por nombre y apellido
-   - `Trabajo Id`: ID del trabajo si el titulo coincide exactamente y el becado aparece como autor
-
-### Paso 6: Descargar Archivos Procesados
-Descargue los archivos actualizados con los resultados del analisis.
+**Archivo de Becados Actualizado (si aplica):**
+Haga clic en "Descargar archivo de Becados actualizado" para obtener el archivo con:
+- `Id Inscripto`: ID del inscripto si se encuentra por nombre y apellido
+- `Trabajo Id`: ID del trabajo si el titulo coincide exactamente y el becado aparece como autor
 
 ---
 
