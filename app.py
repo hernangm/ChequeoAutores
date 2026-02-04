@@ -236,13 +236,11 @@ if trabajos_file is not None and inscriptos_file is not None:
 
         with st.expander("Ver tabla completa de resultados"):
             df_trabajos_display = df_trabajos.copy()
-            object_cols = df_trabajos_display.select_dtypes(include=["object"]).columns
-            if len(object_cols) > 0:
-                df_trabajos_display[object_cols] = (
-                    df_trabajos_display[object_cols]
-                    .where(df_trabajos_display[object_cols].notna(), "")
-                    .astype(str)
-                )
+            df_trabajos_display = (
+                df_trabajos_display
+                .where(df_trabajos_display.notna(), "")
+                .astype(str)
+            )
             st.dataframe(df_trabajos_display)
 
         # Download button
