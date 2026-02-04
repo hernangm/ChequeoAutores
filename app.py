@@ -139,12 +139,50 @@ def extract_authors_from_row(row, df_columns) -> List[Dict[str, str]]:
     return authors
 
 
+def find_inscripto_id(nombre: str, apellido: str, inscriptos_parsed: List[Dict]) -> Optional[str]:
+    """Find the Id Inscripto for a person by matching first and last name."""
+    nombre_norm = normalize_text(nombre)
+    apellido_norm = normalize_text(apellido)
+
+    for inscripto in inscriptos_parsed:
+        if inscripto['lastName'] == apellido_norm and inscripto['firstName'] == nombre_norm:
+            return inscripto.get('id')
+    return None
+
+
+def find_trabajo_id(titulo: str, nombre: str, apellido: str, trabajos_df: pd.DataFrame) -> Optional[str]:
+    """Find the Trabajo ID by matching title and verifying author is in the authors list."""
+    titulo_norm = normalize_text(titulo)
+    nombre_norm = normalize_text(nombre)
+    apellido_norm = normalize_text(apellido)
+
+    # Find the title column (handle encoding variations)
+    titulo_col = None
+    for col in trabajos_df.columns:
+        if normalize_text(col) == 'titulo':
+            titulo_col = col
+            break
+
+    if not titulo_col:
+        return None
+
+    for _, row in trabajos_df.iterrows():
+        row_titulo = normalize_text(row[titulo_col])
+        if row_titulo == titulo_norm:
+            # Check if the person is in the authors list
+            autores = normalize_text(row.get('Autores', ''))
+            if apellido_norm in autores and nombre_norm in autores:
+                return str(row['Trabajo'])
+    return None
+
+
 # Streamlit UI
 st.title("Chequeo de Autores - RADLA 2026")
 st.write("Sube los archivos Excel para verificar si los autores de los trabajos estan inscriptos.")
 
 trabajos_file = st.file_uploader("Archivo de Trabajos Finalizados", type=['xlsx'])
 inscriptos_file = st.file_uploader("Archivo de Inscriptos", type=['xlsx'])
+becados_file = st.file_uploader("Archivo de Becados (opcional)", type=['xlsx'])
 
 if trabajos_file is not None and inscriptos_file is not None:
     # Load the Excel files
@@ -252,10 +290,115 @@ if trabajos_file is not None and inscriptos_file is not None:
         st.download_button(
             label="Descargar archivo actualizado",
             data=output,
-            file_name="TrabajosFinalizados_Actualizado.xlsx",
+            file_name=f"TrabajosFinalizados_Actualizado_{now_str}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
         st.success("Proceso completado!")
+
+        # Process Becados file if uploaded
+        if becados_file is not None:
+            st.divider()
+            st.subheader("Procesamiento de Becados")
+
+            with st.spinner("Cargando archivo de Becados..."):
+                try:
+                    df_becados = pd.read_excel(becados_file)
+                except Exception as exc:
+                    st.error("No se pudo leer el archivo de Becados.")
+                    st.exception(exc)
+                    st.stop()
+
+            # Detect columns in Becados (handle whitespace in column names)
+            becados_cols = {normalize_text(col): col for col in df_becados.columns}
+
+            nombre_col_becados = None
+            apellido_col_becados = None
+            titulo_col_becados = None
+
+            for norm_col, orig_col in becados_cols.items():
+                if 'nombre' in norm_col and 'apellido' not in norm_col:
+                    nombre_col_becados = orig_col
+                elif 'apellido' in norm_col:
+                    apellido_col_becados = orig_col
+                elif 'titulo' in norm_col:
+                    titulo_col_becados = orig_col
+
+            with st.expander("Columnas detectadas en Becados"):
+                st.write(f"- Nombre: `{nombre_col_becados}`")
+                st.write(f"- Apellido: `{apellido_col_becados}`")
+                st.write(f"- Titulo del Trabajo: `{titulo_col_becados}`")
+
+            if not all([nombre_col_becados, apellido_col_becados, titulo_col_becados]):
+                st.error("No se pudieron detectar todas las columnas necesarias en el archivo de Becados.")
+            else:
+                # Add Id Inscripto to inscriptos_parsed for lookup
+                inscriptos_with_id = []
+                id_col = find_column(df_inscriptos.columns, ['id inscripto', 'id_inscripto', 'idinscripto'])
+                for idx, row in df_inscriptos.iterrows():
+                    person = {
+                        'lastName': normalize_text(row[lastname_col]) if lastname_col else "",
+                        'firstName': normalize_text(row[firstname_col]) if firstname_col else "",
+                        'email': normalize_text(row[email_col]) if email_col else "",
+                        'id': str(int(row[id_col])) if id_col and pd.notna(row[id_col]) else ""
+                    }
+                    inscriptos_with_id.append(person)
+
+                # Process each Becado
+                with st.spinner("Procesando becados..."):
+                    ids_inscripto = []
+                    ids_trabajo = []
+
+                    for _, row in df_becados.iterrows():
+                        nombre = row[nombre_col_becados] if pd.notna(row[nombre_col_becados]) else ""
+                        apellido = row[apellido_col_becados] if pd.notna(row[apellido_col_becados]) else ""
+                        titulo = row[titulo_col_becados] if pd.notna(row[titulo_col_becados]) else ""
+
+                        # Find Id Inscripto
+                        id_insc = find_inscripto_id(nombre, apellido, inscriptos_with_id)
+                        ids_inscripto.append(id_insc if id_insc else "")
+
+                        # Find Trabajo Id
+                        id_trab = find_trabajo_id(titulo, nombre, apellido, df_trabajos)
+                        ids_trabajo.append(id_trab if id_trab else "")
+
+                    df_becados['Id Inscripto'] = ids_inscripto
+                    df_becados['Trabajo Id'] = ids_trabajo
+
+                # Display Becados results
+                total_becados = len(df_becados)
+                found_inscripto = sum(1 for x in ids_inscripto if x)
+                found_trabajo = sum(1 for x in ids_trabajo if x)
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Becados", total_becados)
+                with col2:
+                    st.metric("Con Id Inscripto", found_inscripto)
+                with col3:
+                    st.metric("Con Trabajo Id", found_trabajo)
+
+                with st.expander("Ver tabla de Becados procesada"):
+                    df_becados_display = df_becados.copy()
+                    df_becados_display = (
+                        df_becados_display
+                        .where(df_becados_display.notna(), "")
+                        .astype(str)
+                    )
+                    st.dataframe(df_becados_display)
+
+                # Download button for Becados
+                output_becados = BytesIO()
+                df_becados.to_excel(output_becados, index=False, engine='openpyxl')
+                output_becados.seek(0)
+
+                st.download_button(
+                    label="Descargar archivo de Becados actualizado",
+                    data=output_becados,
+                    file_name=f"Becados_Actualizado_{now_str}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+                st.success("Procesamiento de Becados completado!")
 else:
     st.info("Por favor, sube ambos archivos Excel para comenzar el analisis.")
